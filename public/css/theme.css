@@ -1,0 +1,60 @@
+/* Chủ đề GIAI ĐIỆU TRI ÂN — dùng chung LED, điện thoại, quản trị */
+:root {
+  --bg0: #081126; --bg1: #26134D;
+  --cyan: #35D7FF; --violet: #9A6CFF; --pink: #F46BA8;
+  --warm: #FFD58A; --gold: #FFD166; --ivory: #FFF8EE;
+  --silver: #D8E2F0; --bronze: #D79B68;
+  --ink: #081126; --muted: #A9B4D0; --panel: rgba(255,255,255,.06); --line: rgba(255,255,255,.14);
+  --danger: #FF7A90; --ok: #5BE3A4;
+  --font: 'Be Vietnam Pro', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg0); color: var(--ivory); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+img { display: block; }
+button { font-family: inherit; }
+[hidden] { display: none !important; }
+
+/* Nền sân khấu: mesh gradient chuyển chậm (14–20 giây), không chớp */
+.mesh { position: absolute; inset: -20%; pointer-events: none;
+  background:
+    radial-gradient(40% 40% at 20% 25%, rgba(154,108,255,.55), transparent 70%),
+    radial-gradient(35% 40% at 80% 20%, rgba(53,215,255,.35), transparent 70%),
+    radial-gradient(45% 45% at 70% 85%, rgba(244,107,168,.38), transparent 70%),
+    radial-gradient(40% 40% at 15% 90%, rgba(255,213,138,.16), transparent 70%),
+    linear-gradient(160deg, var(--bg0), var(--bg1) 70%);
+  animation: meshMove 18s ease-in-out infinite alternate; }
+@keyframes meshMove { from { transform: translate3d(-2%, -1%, 0) scale(1); } to { transform: translate3d(2%, 2%, 0) scale(1.08); } }
+/* Spotlight mềm */
+.beams { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: .55; }
+.beams::before, .beams::after { content: ''; position: absolute; top: -30%; width: 40%; height: 160%;
+  background: linear-gradient(180deg, rgba(53,215,255,.20), transparent 70%); filter: blur(30px); transform-origin: 50% 0; }
+.beams::before { left: 8%; animation: beamA 16s ease-in-out infinite alternate; }
+.beams::after { right: 8%; background: linear-gradient(180deg, rgba(244,107,168,.20), transparent 70%); animation: beamB 20s ease-in-out infinite alternate; }
+@keyframes beamA { from { transform: rotate(-14deg); } to { transform: rotate(10deg); } }
+@keyframes beamB { from { transform: rotate(12deg); } to { transform: rotate(-9deg); } }
+/* Hạt sáng thưa */
+.dust { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.dust i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--warm); opacity: .0; box-shadow: 0 0 10px 2px rgba(255,213,138,.6); animation: twinkle 9s ease-in-out infinite; }
+@keyframes twinkle { 0%,100% { opacity: 0; transform: translateY(0); } 50% { opacity: .55; transform: translateY(-18px); } }
+/* Sóng âm trang trí (không phân tích âm thanh thật) */
+.wave { position: absolute; left: 0; right: 0; bottom: 0; height: 90px; display: flex; align-items: flex-end; gap: 6px; padding: 0 12px; opacity: .35; pointer-events: none; }
+.wave i { flex: 1; min-width: 3px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--cyan), var(--violet)); height: 20%; animation: bar 4.5s ease-in-out infinite; transform-origin: bottom; }
+@keyframes bar { 0%,100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+
+.reduce *, .reduce *::before, .reduce *::after { animation: none !important; transition-duration: .01ms !important; }
+@media (prefers-reduced-motion: reduce) { .mesh, .beams::before, .beams::after, .dust i, .wave i { animation: none !important; } }
+
+/* Element tri ân: nét mảnh */
+.deco { position: absolute; pointer-events: none; stroke: var(--warm); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
+.deco .fillsoft { fill: rgba(255,213,138,.10); }
+.gold-text { background: linear-gradient(90deg, var(--gold), var(--warm) 40%, #fff3d0 60%, var(--warm)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Hiệu ứng dùng chung */
+.btn { appearance: none; border: 0; cursor: pointer; border-radius: 14px; padding: 14px 20px; font-weight: 700; font-size: 16px; color: var(--ink); background: linear-gradient(135deg, var(--cyan), #8fe9ff); box-shadow: 0 6px 24px rgba(53,215,255,.25); transition: transform .12s, filter .12s; }
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: translateY(1px) scale(.99); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.ghost { background: var(--panel); color: var(--ivory); box-shadow: none; border: 1px solid var(--line); }
+.btn.warn { background: linear-gradient(135deg, var(--pink), #ff9fc4); color: #2a0b1a; box-shadow: 0 6px 24px rgba(244,107,168,.25); }
+.btn.gold { background: linear-gradient(135deg, var(--gold), var(--warm)); box-shadow: 0 6px 24px rgba(255,209,102,.25); }
+.btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
