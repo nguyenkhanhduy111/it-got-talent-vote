@@ -268,9 +268,13 @@ async function poll(force = false) {
 setInterval(() => { poll(); }, 4000);
 setInterval(() => { const el = $('#tleft'); const r = round(); if (el && r) el.textContent = fmtClock(r.closesAt - clock.now()); if (r && ['pick', 'confirm', 'welcome'].includes(S.view) && r.status === 'open' && clock.now() >= r.closesAt && !S.busy) { if (S.view !== 'welcome') go('closed'); else render(); } }, 500);
 
-await poll(true);
-const urlCode = new URLSearchParams(location.search).get('code');
-if (urlCode) { history.replaceState(null, '', location.pathname + (S.pick ? `?pick=${encodeURIComponent(S.pick)}` : '')); }
-if (S.token) await afterLogin();
-if (urlCode) { S.codeDraft = urlCode.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10); S.codeDraft = S.codeDraft.length > 5 ? `${S.codeDraft.slice(0, 5)}-${S.codeDraft.slice(5)}` : S.codeDraft; await doCheckin(S.codeDraft); }
-else if (S.pick && S.token && S.name && !S.myVote && isOpen()) { await nextStep(); } else render();
+// Không dùng top-level await để chạy được trên trình duyệt điện thoại/Zalo/Facebook cũ.
+async function main() {
+  await poll(true);
+  const urlCode = new URLSearchParams(location.search).get('code');
+  if (urlCode) { history.replaceState(null, '', location.pathname + (S.pick ? `?pick=${encodeURIComponent(S.pick)}` : '')); }
+  if (S.token) await afterLogin();
+  if (urlCode) { S.codeDraft = urlCode.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10); S.codeDraft = S.codeDraft.length > 5 ? `${S.codeDraft.slice(0, 5)}-${S.codeDraft.slice(5)}` : S.codeDraft; await doCheckin(S.codeDraft); }
+  else if (S.pick && S.token && S.name && !S.myVote && isOpen()) { await nextStep(); } else render();
+}
+main().catch((e) => { console.error(e); const a = document.getElementById('app'); if (a) a.innerHTML = '<div class="card"><h2>Không tải được trang</h2><p>Vui lòng tải lại trang. Nếu vẫn lỗi, hãy mở bằng Chrome hoặc Safari.</p></div>'; });

@@ -15,3 +15,8 @@ Một trang tổng (`/`): khán giả nhập mã để bình chọn; ban tổ ch
 
 ## Chưa kiểm chứng thực tế
 Điện thoại/GPS thật, màn hình LED và âm thanh thật, bản chạy .exe trên Windows, deploy Render thật, Docker build.
+
+
+## Ghi chú: file vote.legacy.js
+`public/vote.html` nạp `public/js/vote.legacy.js` (bản đóng gói ES2017 của `vote.js`) để chạy được trên trình duyệt điện thoại cũ. Sau khi sửa `public/js/vote.js`, `common.js` hoặc `audio.js`, tạo lại bằng:
+`npx esbuild public/js/vote.js --bundle --target=es2017 --format=iife --outfile=public/js/vote.legacy.js`
