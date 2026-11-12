@@ -1,0 +1,21 @@
+{
+  "name": "giai-dieu-tri-an",
+  "version": "1.0.0",
+  "description": "MUSIC VOTE LIVE - Website bình chọn đêm nhạc GIAI ĐIỆU TRI ÂN (20/11)",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "demo": "node server/index.js --demo",
+    "dev": "node --watch server/index.js --demo",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "check": "node scripts/check.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -1,0 +1,19 @@
+IT GOT TALENT - NOT NHAC TRI AN - Website binh chon Chung Ket 15/11/2026
+
+CACH DUNG (khong can cai gi):
+0. Chi 1 file zip. Lan chay DAU TIEN can Internet de tu tai Node.js (~85 MB).
+1. Giai nen ca thu muc ra o cung (vd Desktop). KHONG chay trong file zip.
+2. Bam doi CHAY-DEMO.bat de THU truoc (du lieu mo phong, ma DEMO0001..DEMO0010).
+   Bam doi CHAY.bat de chay THAT (lan dau se hoi mat khau Admin / Operator).
+3. Neu Windows hoi Firewall: bam "Cho phep" (Allow).
+4. Cua so den se in ra 3 duong link; trinh duyet tu mo TRANG TONG:
+   - Khan gia: nhap ma tham du -> binh chon.
+   - Ban to chuc: dang nhap bang mat khau -> trang quan tri.
+   - Man hinh LED: mo link LED (co khoa) tren may noi voi man hinh.
+5. QR tren man hinh tro dung link cong khai (Cloudflare tunnel, can Internet).
+   Moi lan khoi dong link doi -> luon in QR/link sau khi chay.
+   Khong co Internet: dung link mang LAN, nhung dien thoai se KHONG lay duoc GPS (HTTP)
+   -> tat "kiem tra vi tri" trong Quan tri.
+
+LUU Y: du lieu luu trong thu muc "data". Dung xoa thu muc nay giua dem thi.
+Chua kiem tra tren dien thoai/man hinh LED/Windows that - hay chay thu truoc ngay thi.
