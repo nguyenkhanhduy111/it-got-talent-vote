@@ -5,7 +5,7 @@ const clock = new ServerClock();
 const app = $('#app');
 const S = {
   view: 'welcome', pub: null, token: store.get('gdta.token'), name: store.get('gdta.name'), myVote: null,
-  geo: null, geoErr: null, geoBusy: false, sel: null, busy: false, err: null, info: null, codeDraft: '', pending: store.get('gdta.pending'),
+  geo: null, geoErr: null, geoBusy: false, sel: null, busy: false, err: null, info: null, codeDraft: '', reg: { name: '', mssv: '', phone: '', email: '', emailMasked: '' }, pending: store.get('gdta.pending'),
   prefs: { sound: store.get('gdta.sound', false), vib: store.get('gdta.vib', false), reduce: store.get('gdta.reduce', matchMedia('(prefers-reduced-motion: reduce)').matches) },
   pick: new URLSearchParams(location.search).get('pick'), receipt: null,
 };
@@ -41,14 +41,24 @@ const V = {
     else if (!isOpen()) cta = '<button class="btn block ghost" data-act="follow">Xem kết quả</button>';
     else cta = '<button class="btn block" data-act="join">Tham gia bình chọn</button>';
     return `<div class="card"><h1>${esc(S.pub?.event.name || '')}</h1><p>${esc(S.pub?.event.tagline || '')}</p>${statusChip()}${timeBlock()}</div>
-      <div class="card"><h2>Cách bình chọn</h2><ol class="steps"><li>Nhập mã tham dự trên vé của bạn.</li><li>Cho phép chia sẻ vị trí để kiểm tra bạn đang ở khu vực sự kiện.</li><li>Chọn một đội, kiểm tra lại và xác nhận. Mỗi người một phiếu mỗi vòng.</li></ol></div>${cta}`;
+      <div class="card"><h2>Cách bình chọn</h2><ol class="steps"><li>Điền họ tên, MSSV, số điện thoại và Gmail, rồi nhập mã xác nhận 6 số gửi về Gmail của bạn.</li><li>Cho phép chia sẻ vị trí để kiểm tra bạn đang ở khu vực sự kiện.</li><li>Chọn một đội, kiểm tra lại và xác nhận. Mỗi người một phiếu mỗi vòng.</li></ol></div>${cta}`;
   },
   code() {
-    return `<div class="card"><h2>Nhập mã tham dự</h2><p>Mã gồm 10 ký tự trên vé của bạn (ví dụ ABCDE-FGH23).</p>${S.err ? errMsg(S.err) : ''}
-      <form id="codeForm" autocomplete="off"><input class="field" id="code" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="14" placeholder="XXXXX-XXXXX" value="${esc(S.codeDraft)}" aria-label="Mã tham dự">
-      <button class="btn block" type="submit" ${S.busy ? 'disabled' : ''}>${S.busy ? '<span class="spinner"></span>Đang kiểm tra' : 'Tiếp tục'}</button></form>
-      <p style="margin-top:12px;font-size:14px">Không có mã hoặc mã không dùng được? Hãy đến bàn hỗ trợ.</p></div>
+    const R = S.reg, L = 'display:block;margin:12px 0 4px;font-weight:600', F = 'style="text-align:left;text-transform:none;letter-spacing:normal;font-size:18px"';
+    return `<div class="card"><h2>Thông tin người bình chọn</h2><p>Điền đúng thông tin của bạn. Mỗi MSSV, số điện thoại và Gmail chỉ được bình chọn một lần.</p>${S.err ? errMsg(S.err) : ''}
+      <form id="regForm" autocomplete="on" novalidate>
+      <label style="${L}" for="r_name">Họ và tên</label><input class="field" ${F} id="r_name" autocomplete="name" maxlength="100" value="${esc(R.name)}">
+      <label style="${L}" for="r_mssv">Mã số sinh viên (MSSV)</label><input class="field" ${F} id="r_mssv" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="15" value="${esc(R.mssv)}">
+      <label style="${L}" for="r_phone">Số điện thoại</label><input class="field" ${F} id="r_phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="15" value="${esc(R.phone)}">
+      <label style="${L}" for="r_email">Gmail (để nhận mã xác nhận)</label><input class="field" ${F} id="r_email" type="email" inputmode="email" autocapitalize="none" autocomplete="email" spellcheck="false" maxlength="80" placeholder="ten@gmail.com" value="${esc(R.email)}">
+      <button class="btn block" type="submit" style="margin-top:16px" ${S.busy ? 'disabled' : ''}>${S.busy ? '<span class="spinner"></span>Đang gửi mã…' : 'Gửi mã xác nhận'}</button></form></div>
       <a class="link" href="/">← Về trang tổng</a>`;
+  },
+  verify() {
+    return `<div class="card"><h2>Nhập mã xác nhận</h2><p>Mã gồm 6 số đã gửi tới <b>${esc(S.reg.emailMasked)}</b>. Mã có hiệu lực 10 phút. Nếu chưa thấy, hãy kiểm tra mục Thư rác (Spam) hoặc Quảng cáo.</p>${S.err ? errMsg(S.err) : ''}${S.info ? infoMsg(S.info) : ''}
+      <form id="verifyForm" autocomplete="off"><input class="field" id="v_code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="Mã xác nhận" style="letter-spacing:8px;text-align:center;font-size:24px">
+      <button class="btn block" type="submit" ${S.busy ? 'disabled' : ''}>${S.busy ? '<span class="spinner"></span>Đang kiểm tra' : 'Xác nhận và bình chọn'}</button></form>
+      <div class="stack" style="margin-top:10px"><button class="btn block ghost" data-act="resend" ${S.busy ? 'disabled' : ''}>Gửi lại mã</button><button class="btn block ghost" data-act="editinfo">Sửa thông tin</button></div></div>`;
   },
   confirmName() {
     return `<div class="card"><h2>Xác nhận người tham dự</h2><p>Mã này được đăng ký cho:</p><div style="font-size:26px;font-weight:800;margin:6px 0 16px">${esc(S.name)}</div><p>Đây có đúng là bạn không?</p>
@@ -110,7 +120,7 @@ const V = {
 function render() {
   const rb = $('#ribbon'); rb.hidden = !S.pub?.demo;
   app.innerHTML = (V[S.view] || V.welcome)();
-  if (S.view === 'code') { const i = $('#code'); i?.focus(); i?.addEventListener('input', () => { const raw = i.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10); S.codeDraft = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw; i.value = S.codeDraft; }); }
+  if (S.view === 'verify') $('#v_code')?.focus();
 }
 
 // ---------- hành vi ----------
@@ -194,6 +204,8 @@ document.addEventListener('click', async (e) => {
   if (act === 'back') return go('welcome');
   if (act === 'follow') return go('follow');
   if (act === 'nameok') return nextStep();
+  if (act === 'editinfo') return go('code');
+  if (act === 'resend') return doRegister(true);
   if (act === 'notme') { logout(); S.codeDraft = ''; return go('code'); }
   if (act === 'getgeo' || act === 'getgeo-again') return getGeo(act === 'getgeo-again' ? 'pick' : 'pick');
   if (act === 'select') { S.sel = Number(el.dataset.id); return render(); }
@@ -211,7 +223,31 @@ async function doCheckin(code) {
     S.busy = false; await afterLogin(); go(S.myVote ? 'follow' : 'confirmName');
   } catch (err) { S.busy = false; S.err = err.message; S.view = 'code'; render(); }
 }
-document.addEventListener('submit', (e) => { if (e.target.id !== 'codeForm') return; e.preventDefault(); doCheckin(S.codeDraft); });
+async function doRegister(resend = false) {
+  if (S.busy) return;
+  if (!resend) { const v = (id) => $(id)?.value ?? ''; S.reg = { ...S.reg, name: v('#r_name'), mssv: v('#r_mssv'), phone: v('#r_phone'), email: v('#r_email') }; }
+  S.busy = true; S.err = null; S.info = null; render();
+  try {
+    const r = await api('/api/register', { method: 'POST', body: { name: S.reg.name, mssv: S.reg.mssv, phone: S.reg.phone, email: S.reg.email }, timeout: 25000 });
+    S.reg.emailMasked = r.email; S.busy = false;
+    if (resend) { S.view = 'verify'; S.info = 'Đã gửi lại mã vào Gmail của bạn.'; render(); } else go('verify');
+  } catch (err) { S.busy = false; S.err = err.message; S.view = resend ? 'verify' : 'code'; render(); }
+}
+async function doVerify() {
+  if (S.busy) return;
+  const code = ($('#v_code')?.value || '').replace(/\D/g, '');
+  if (code.length !== 6) { S.err = 'Vui lòng nhập đủ 6 số.'; S.info = null; return render(); }
+  S.busy = true; S.err = null; S.info = null; render();
+  try {
+    const r = await api('/api/verify', { method: 'POST', body: { email: S.reg.email, code } });
+    S.token = r.token; S.name = r.name; store.set('gdta.token', r.token); store.set('gdta.name', r.name);
+    S.busy = false; await afterLogin(); await nextStep();
+  } catch (err) { S.busy = false; S.err = err.message; S.view = 'verify'; render(); }
+}
+document.addEventListener('submit', (e) => {
+  if (e.target.id === 'regForm') { e.preventDefault(); doRegister(); }
+  else if (e.target.id === 'verifyForm') { e.preventDefault(); doVerify(); }
+});
 addEventListener('online', () => { if (S.view === 'confirm' && S.offline && S.pending) submit(); });
 
 // ---------- đồng bộ trạng thái công khai ----------

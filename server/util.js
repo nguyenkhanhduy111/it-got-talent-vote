@@ -171,3 +171,23 @@ export class RateLimiter {
     for (const [k, v] of this.hits) if (!v.some((t) => now - t < windowMs)) this.hits.delete(k);
   }
 }
+
+// ---------- đăng ký khán giả ----------
+export function parseRegistration(b) {
+  b = b && typeof b === 'object' ? b : {};
+  const name = String(b.name ?? '').replace(/\s+/g, ' ').trim();
+  if (name.length < 2 || name.length > 100) throw new HttpError(400, 'BAD_NAME', 'Vui lòng nhập họ và tên (2–100 ký tự).');
+  const mssv = String(b.mssv ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (mssv.length < 5 || mssv.length > 15) throw new HttpError(400, 'BAD_MSSV', 'MSSV không hợp lệ (5–15 chữ/số).');
+  let phone = String(b.phone ?? '').replace(/[\s.\-()]/g, '');
+  if (phone.startsWith('+84')) phone = '0' + phone.slice(3); else if (phone.startsWith('84') && phone.length === 11) phone = '0' + phone.slice(2);
+  if (!/^0\d{9}$/.test(phone)) throw new HttpError(400, 'BAD_PHONE', 'Số điện thoại không hợp lệ (10 số, bắt đầu bằng 0).');
+  const email = String(b.email ?? '').trim().toLowerCase();
+  const m = email.match(/^([a-z0-9._+-]{1,64})@(gmail\.com|googlemail\.com)$/);
+  if (!m) throw new HttpError(400, 'BAD_EMAIL', 'Vui lòng nhập địa chỉ Gmail hợp lệ (đuôi @gmail.com).');
+  // Gmail bỏ qua dấu chấm và phần sau dấu +, nên chuẩn hoá để chặn dùng nhiều bí danh của cùng một hộp thư.
+  const local = m[1].split('+')[0].replace(/\./g, '');
+  if (!local) throw new HttpError(400, 'BAD_EMAIL', 'Vui lòng nhập địa chỉ Gmail hợp lệ (đuôi @gmail.com).');
+  return { name, mssv, phone, email, emailNorm: `${local}@gmail.com` };
+}
+export const maskEmail = (e) => e.replace(/^(.{2})[^@]*(@.*)$/, '$1***$2');

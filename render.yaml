@@ -23,6 +23,16 @@ services:
         sync: false
       - key: PUBLIC_URL
         sync: false          # điền https://<tên-dịch-vụ>.onrender.com sau lần deploy đầu
+      - key: MAIL_BRIDGE_URL
+        sync: false          # https://penguinstudio1405.online/send-code.php
+      - key: MAIL_BRIDGE_TOKEN
+        sync: false          # chuỗi bí mật trùng SECRET_TOKEN trong send-code.php
+      - key: BREVO_API_KEY
+        sync: false          # khóa API Brevo để gửi mã xác nhận về Gmail khán giả
+      - key: MAIL_FROM
+        sync: false          # địa chỉ email người gửi đã xác minh trên Brevo
+      - key: MAIL_FROM_NAME
+        value: IT GOT TALENT
       - key: CODE_PEPPER
         generateValue: true
       - key: SESSION_SECRET

@@ -5,7 +5,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { Store } from './store.js';
-import { HttpError, RateLimiter, signToken, verifyToken, safeEqual, toCsv, parseCsv } from './util.js';
+import { HttpError, RateLimiter, signToken, verifyToken, safeEqual, toCsv, parseCsv, parseRegistration, maskEmail } from './util.js';
+import { makeMailer } from './mailer.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -24,6 +25,7 @@ export function createApp(overrides = {}) {
   if (config.autoSeed) store.seedSampleTeams();
   if (config.demo) store.seedDemo();
   const limiter = new RateLimiter(clock);
+  const mailer = overrides.mailer || makeMailer(config);
   const sse = new Set();
   const qrCache = new Map();
 
@@ -144,6 +146,32 @@ export function createApp(overrides = {}) {
     const a = store.findAttendeeByCode(c.body?.code);
     // Thông báo lỗi chung: không phân biệt "sai" với "bị thu hồi", không lộ tên khi dò mã.
     if (!a || a.status !== 'active') { limiter.hit(key, 1e9, 300000); throw new HttpError(401, 'BAD_CODE', 'Mã không hợp lệ. Hãy kiểm tra lại hoặc đến bàn hỗ trợ.'); }
+    const exp = clock.now() + TOKEN_TTL;
+    return c.json(200, { token: signToken(config.sessionSecret, { k: 'att', a: a.id, v: a.token_ver, exp }), name: a.name, expiresAt: exp });
+  });
+  // Đăng ký tự khai: bước 1 gửi mã 6 số về Gmail, bước 2 nhập mã để vào bình chọn.
+  route('POST', '/api/register', async (c) => {
+    const ip = ipOf(c.req);
+    if (!limiter.hit(`reg:${ip}`, 200, 600000)) throw new HttpError(429, 'RATE_LIMIT', 'Quá nhiều yêu cầu. Vui lòng chờ vài phút hoặc đến bàn hỗ trợ.');
+    const info = parseRegistration(c.body);
+    if (!limiter.hit(`regmail:${info.emailNorm}`, 6, 3600000)) throw new HttpError(429, 'RATE_LIMIT', 'Gmail này đã yêu cầu mã quá nhiều lần. Hãy thử lại sau.');
+    const code = store.startRegistration(info);
+    try {
+      await mailer.send({
+        to: info.email, subject: `Mã xác nhận bình chọn: ${code}`,
+        text: `Xin chào ${info.name},\n\nMã xác nhận của bạn là: ${code}\nMã có hiệu lực trong 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.\n\n${store.publicState().event.name}`,
+        html: `<p>Xin chào <b>${info.name.replace(/[<>&"]/g, '')}</b>,</p><p>Mã xác nhận bình chọn của bạn là:</p><p style="font-size:30px;font-weight:bold;letter-spacing:6px">${code}</p><p>Mã có hiệu lực trong 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`,
+      });
+    } catch (e) { store.cancelRegistration(info.emailNorm); throw e; }
+    return c.json(200, { ok: true, email: maskEmail(info.email), expiresInSec: 600, resendAfterSec: 60 });
+  });
+  route('POST', '/api/verify', async (c) => {
+    const ip = ipOf(c.req);
+    if (!limiter.hit(`vf:${ip}`, 300, 600000)) throw new HttpError(429, 'RATE_LIMIT', 'Quá nhiều yêu cầu. Vui lòng chờ vài phút.');
+    const b = c.body || {};
+    const info = parseRegistration({ name: 'xx', mssv: '00000', phone: '0000000000', email: b.email });
+    const a = store.completeRegistration(info.emailNorm, b.code);
+    await durable();
     const exp = clock.now() + TOKEN_TTL;
     return c.json(200, { token: signToken(config.sessionSecret, { k: 'att', a: a.id, v: a.token_ver, exp }), name: a.name, expiresAt: exp });
   });

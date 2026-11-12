@@ -60,6 +60,12 @@ export function loadConfig(overrides = {}) {
     sessionSecret, codePepper, screenKey,
     adminPassword, generatedAdminPassword: generatedAdmin,
     operatorPassword,
+    mailBridgeUrl: env.MAIL_BRIDGE_URL || '',
+    mailBridgeToken: env.MAIL_BRIDGE_TOKEN || '',
+    brevoApiKey: env.BREVO_API_KEY || '',
+    mailFrom: env.MAIL_FROM || '',
+    mailFromName: env.MAIL_FROM_NAME || 'IT GOT TALENT',
+    mailDebug: env.MAIL_DEBUG === '1',
     autoSeed: (overrides.autoSeed ?? env.AUTO_SEED) !== '0' && overrides.autoSeed !== false,
     tick: overrides.tick ?? true,
   };

@@ -65,6 +65,12 @@ export class Store {
       try { this.db.exec(sql); this.db.exec('PRAGMA user_version = 1'); this.db.exec('COMMIT'); }
       catch (e) { this.db.exec('ROLLBACK'); throw e; }
     }
+    if (this.db.prepare('PRAGMA user_version').get().user_version < 2) {
+      const sql = fs.readFileSync(path.join(this.config.root, 'migrations', '002_registration.sql'), 'utf8');
+      this.db.exec('BEGIN');
+      try { this.db.exec(sql); this.db.exec('PRAGMA user_version = 2'); this.db.exec('COMMIT'); }
+      catch (e) { this.db.exec('ROLLBACK'); throw e; }
+    }
   }
   /** Giao dịch ghi (BEGIN IMMEDIATE) - serialize với mọi ghi khác. */
   tx(fn) {
@@ -493,9 +499,60 @@ export class Store {
     if (normalizeCode(code).length < 6) return null;
     return this.db.prepare('SELECT * FROM attendees WHERE code_hash=?').get(hashCode(this.config.codePepper, code)) || null;
   }
+  // ---------- đăng ký tự khai (họ tên + MSSV + SĐT + Gmail) ----------
+  /** Bước 1: kiểm tra trùng, tạo mã 6 số chờ xác nhận. Trả về mã (để gửi email). */
+  startRegistration(info) {
+    return this.tx(() => {
+      const now = this.clock.now();
+      const rows = this.db.prepare('SELECT * FROM attendees WHERE mssv=? OR phone=? OR email_norm=?').all(info.mssv, info.phone, info.emailNorm);
+      const ids = new Set(rows.map((r) => r.id));
+      if (ids.size > 1 || (ids.size === 1 && !(rows[0].mssv === info.mssv && rows[0].phone === info.phone && rows[0].email_norm === info.emailNorm))) {
+        throw new HttpError(409, 'DUPLICATE', 'MSSV, số điện thoại hoặc Gmail này đã được dùng để đăng ký. Mỗi người chỉ được bình chọn một lần. Nếu bạn nghĩ đây là nhầm lẫn, hãy đến bàn hỗ trợ.');
+      }
+      if (rows[0] && rows[0].status !== 'active') throw new HttpError(403, 'REVOKED', 'Tài khoản này không được phép bình chọn. Hãy đến bàn hỗ trợ.');
+      const old = this.db.prepare('SELECT sent_at FROM reg_pending WHERE email_norm=?').get(info.emailNorm);
+      if (old && now - old.sent_at < 60000) throw new HttpError(429, 'TOO_SOON', `Vui lòng chờ ${Math.ceil((60000 - (now - old.sent_at)) / 1000)} giây rồi bấm gửi lại mã.`);
+      const code = String(crypto.randomInt(100000, 1000000));
+      this.db.prepare(`INSERT INTO reg_pending (email_norm,name,mssv,phone,email,code_hash,expires_at,attempts,sent_at) VALUES (?,?,?,?,?,?,?,0,?)
+        ON CONFLICT(email_norm) DO UPDATE SET name=excluded.name, mssv=excluded.mssv, phone=excluded.phone, email=excluded.email, code_hash=excluded.code_hash, expires_at=excluded.expires_at, attempts=0, sent_at=excluded.sent_at`)
+        .run(info.emailNorm, info.name, info.mssv, info.phone, info.email, hashCode(this.config.codePepper, code), now + 10 * 60000, now);
+      return code;
+    });
+  }
+  cancelRegistration(emailNorm) { this.db.prepare('DELETE FROM reg_pending WHERE email_norm=?').run(emailNorm); this.markDirty(); }
+  /** Bước 2: kiểm tra mã 6 số, tạo (hoặc lấy lại) người tham dự. */
+  completeRegistration(emailNorm, code) {
+    const res = this.tx(() => {
+      const now = this.clock.now();
+      const p = this.db.prepare('SELECT * FROM reg_pending WHERE email_norm=?').get(emailNorm);
+      if (!p || p.expires_at < now) return { err: ['CODE_EXPIRED', 400, 'Mã đã hết hạn hoặc chưa được gửi. Hãy bấm gửi lại mã.'] };
+      if (p.attempts >= 5) { this.db.prepare('DELETE FROM reg_pending WHERE email_norm=?').run(emailNorm); return { err: ['TOO_MANY', 429, 'Nhập sai quá nhiều lần. Hãy bấm gửi lại mã mới.'] }; }
+      if (hashCode(this.config.codePepper, String(code ?? '')) !== p.code_hash) {
+        this.db.prepare('UPDATE reg_pending SET attempts=attempts+1 WHERE email_norm=?').run(emailNorm);
+        return { err: ['BAD_CODE', 401, 'Mã không đúng. Hãy kiểm tra lại.'] };
+      }
+      let a = this.db.prepare('SELECT * FROM attendees WHERE mssv=? AND phone=? AND email_norm=?').get(p.mssv, p.phone, p.email_norm);
+      if (!a) {
+        try {
+          const r = this.db.prepare('INSERT INTO attendees (name, code_hash, mssv, phone, email, email_norm, created_at) VALUES (?,?,?,?,?,?,?)')
+            .run(p.name, hashCode(this.config.codePepper, generateCode(16)), p.mssv, p.phone, p.email, p.email_norm, now);
+          a = this.attendeeRow(Number(r.lastInsertRowid));
+          this.audit('khán giả', 'attendee.register', p.mssv);
+        } catch (e) {
+          if (/UNIQUE/.test(e.message)) { this.db.prepare('DELETE FROM reg_pending WHERE email_norm=?').run(emailNorm); return { err: ['DUPLICATE', 409, 'MSSV, số điện thoại hoặc Gmail này đã được dùng để đăng ký.'] }; }
+          throw e;
+        }
+      } else if (a.status !== 'active') return { err: ['REVOKED', 403, 'Tài khoản này không được phép bình chọn. Hãy đến bàn hỗ trợ.'] };
+      this.db.prepare('DELETE FROM reg_pending WHERE email_norm=?').run(emailNorm);
+      return { a };
+    });
+    if (res.err) throw new HttpError(res.err[1], res.err[0], res.err[2]);
+    this.markDirty();
+    return res.a;
+  }
   attendeeRow(id) { return this.db.prepare('SELECT * FROM attendees WHERE id=?').get(id); }
   listAttendees(roundId) {
-    return this.db.prepare(`SELECT a.id, a.name, a.status, a.geo_exception AS geoException, a.note, a.is_simulated AS simulated, a.created_at AS createdAt,
+    return this.db.prepare(`SELECT a.id, a.name, a.mssv, a.phone, a.email, a.status, a.geo_exception AS geoException, a.note, a.is_simulated AS simulated, a.created_at AS createdAt,
         (SELECT 1 FROM votes v WHERE v.attendee_id=a.id AND v.round_id=?) AS voted FROM attendees a ORDER BY a.id`).all(roundId ?? -1)
       .map((a) => ({ ...a, voted: !!a.voted, geoException: !!a.geoException, simulated: !!a.simulated }));
   }
